@@ -18,5 +18,24 @@
   },
   "peerDependencies": {
     "whatwg-url": "7.1.0"
+  },
+  "pluginType": "elizaos:plugin:1.0.0",
+  "pluginParameters": {
+    "type": "object",
+    "required": ["evmPrivateKey"],
+    "properties": {
+      "evmPrivateKey": {
+        "type": "string",
+        "description": "EVM private key"
+      },
+      "evmProviderUrl": {
+        "type": "string",
+        "description": "Custom RPC URL for Ethereum mainnet"
+      }
+    }
+  },
+  "pluginEnv": {
+    "EVM_PRIVATE_KEY": "evmPrivateKey",
+    "EVM_PROVIDER_URL": "evmProviderUrl"
   }
 }
