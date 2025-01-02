@@ -107,13 +107,19 @@ const buildTransferDetails = async (
 export const transferAction = {
     name: "transfer",
     description: "Transfer tokens between addresses on the same chain",
-    handler: async (
+    handler: async ({
+        runtime,
+        message,
+        state,
+        options,
+        callback,
+    }: {
         runtime: IAgentRuntime,
-        _message: Memory,
+        message: Memory,
         state: State,
-        _options: any,
-        callback?: HandlerCallback
-    ) => {
+        options: any,
+        callback: HandlerCallback
+    }) => {
         console.log("Transfer action handler called");
         const walletProvider = initWalletProvider(runtime);
         const action = new TransferAction(walletProvider);

@@ -1,4 +1,4 @@
-import type { IAgentRuntime, Memory, State } from "@elizaos/core";
+import type { IAgentRuntime, Memory, State, HandlerCallback } from "@elizaos/core";
 import {
     composeContext,
     generateObjectDeprecated,
@@ -89,13 +89,19 @@ export class BridgeAction {
 export const bridgeAction = {
     name: "bridge",
     description: "Bridge tokens between different chains",
-    handler: async (
+    handler: async ({
+        runtime,
+        message,
+        state,
+        options,
+        callback,
+    }: {
         runtime: IAgentRuntime,
-        _message: Memory,
+        message: Memory,
         state: State,
-        _options: any,
-        callback?: any
-    ) => {
+        options: any,
+        callback: HandlerCallback
+    }) => {
         console.log("Bridge action handler called");
         const walletProvider = initWalletProvider(runtime);
         const action = new BridgeAction(walletProvider);

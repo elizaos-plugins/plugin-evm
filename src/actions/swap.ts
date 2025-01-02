@@ -1,4 +1,4 @@
-import type { IAgentRuntime, Memory, State } from "@elizaos/core";
+import type { IAgentRuntime, Memory, State, HandlerCallback } from "@elizaos/core";
 import {
     composeContext,
     generateObjectDeprecated,
@@ -99,13 +99,19 @@ export class SwapAction {
 export const swapAction = {
     name: "swap",
     description: "Swap tokens on the same chain",
-    handler: async (
+    handler: async ({
+        runtime,
+        message,
+        state,
+        options,
+        callback,
+    }: {
         runtime: IAgentRuntime,
-        _message: Memory,
+        message: Memory,
         state: State,
-        _options: any,
-        callback?: any
-    ) => {
+        options: any,
+        callback: HandlerCallback
+    }) => {
         console.log("Swap action handler called");
         const walletProvider = initWalletProvider(runtime);
         const action = new SwapAction(walletProvider);
