@@ -23,7 +23,7 @@ import type {
     PrivateKeyAccount,
 } from "viem";
 import * as viemChains from "viem/chains";
-import { DeriveKeyProvider, TEEMode } from "@elizaos/plugin-tee";
+// import { DeriveKeyProvider, TEEMode } from "@elizaos/plugin-tee";
 import NodeCache from "node-cache";
 import * as path from "path";
 
@@ -278,30 +278,30 @@ const genChainsFromRuntime = (
 };
 
 export const initWalletProvider = async (runtime: IAgentRuntime) => {
-    const teeMode = runtime.getSetting("TEE_MODE") || TEEMode.OFF;
+    // const teeMode = runtime.getSetting("TEE_MODE") || TEEMode.OFF;
 
     const chains = genChainsFromRuntime(runtime);
 
-    if (teeMode !== TEEMode.OFF) {
-        const walletSecretSalt = runtime.getSetting("WALLET_SECRET_SALT");
-        if (!walletSecretSalt) {
-            throw new Error(
-                "WALLET_SECRET_SALT required when TEE_MODE is enabled"
-            );
-        }
+    // if (teeMode !== TEEMode.OFF) {
+    //     const walletSecretSalt = runtime.getSetting("WALLET_SECRET_SALT");
+    //     if (!walletSecretSalt) {
+    //         throw new Error(
+    //             "WALLET_SECRET_SALT required when TEE_MODE is enabled"
+    //         );
+    //     }
 
-        const deriveKeyProvider = new DeriveKeyProvider(teeMode);
-        const deriveKeyResult = await deriveKeyProvider.deriveEcdsaKeypair(
-            "/",
-            walletSecretSalt,
-            runtime.agentId
-        );
-        return new WalletProvider(
-            deriveKeyResult.keypair,
-            runtime.cacheManager,
-            chains
-        );
-    } else {
+    //     const deriveKeyProvider = new DeriveKeyProvider(teeMode);
+    //     const deriveKeyResult = await deriveKeyProvider.deriveEcdsaKeypair(
+    //         "/",
+    //         walletSecretSalt,
+    //         runtime.agentId
+    //     );
+    //     return new WalletProvider(
+    //         deriveKeyResult.keypair,
+    //         runtime.cacheManager,
+    //         chains
+    //     );
+    // } else {
         const privateKey = runtime.getSetting(
             "EVM_PRIVATE_KEY"
         ) as `0x${string}`;
@@ -309,7 +309,7 @@ export const initWalletProvider = async (runtime: IAgentRuntime) => {
             throw new Error("EVM_PRIVATE_KEY is missing");
         }
         return new WalletProvider(privateKey, runtime.cacheManager, chains);
-    }
+    // }
 };
 
 export const evmWalletProvider: Provider = {
