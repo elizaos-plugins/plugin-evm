@@ -7,6 +7,7 @@
     "types": "dist/index.d.ts",
     "exports": {
         "./package.json": "./package.json",
+        "./plugin.json": "./plugin.json",
         ".": {
             "import": {
                 "@elizaos/source": "./src/index.ts",
@@ -19,8 +20,6 @@
         "dist"
     ],
     "dependencies": {
-        "@elizaos/core": "workspace:*",
-        "@elizaos/plugin-tee": "workspace:*",
         "@lifi/data-types": "5.15.5",
         "@lifi/sdk": "3.4.1",
         "@lifi/types": "16.3.0",
