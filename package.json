@@ -17,7 +17,8 @@
         }
     },
     "files": [
-        "dist"
+        "dist",
+        "plugin.json"
     ],
     "dependencies": {
         "@lifi/data-types": "5.15.5",
