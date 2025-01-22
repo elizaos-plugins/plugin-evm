@@ -34,5 +34,16 @@
     },
     "peerDependencies": {
         "whatwg-url": "7.1.0"
+    },
+    "agentConfig": {
+        "pluginType": "elizaos:plugin:1.0.0",
+        "pluginParameters": {
+            "EVM_PRIVATE_KEY": {
+                "type": "string"
+            },
+            "EVM_PROVIDER_URL": {
+                "type": "string"
+            }
+        }
     }
 }
