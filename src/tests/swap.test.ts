@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import type { Account, Chain } from "viem";
 
-import { TransferAction } from "../actions/transfer";
 import { WalletProvider } from "../providers/wallet";
+import { SwapAction } from "../actions/swap";
 
 // Mock the ICacheManager
 const mockCacheManager = {
@@ -11,7 +11,7 @@ const mockCacheManager = {
     set: vi.fn(),
 };
 
-describe("Transfer Action", () => {
+describe("Swap Action", () => {
     let wp: WalletProvider;
 
     beforeEach(async () => {
@@ -29,37 +29,40 @@ describe("Transfer Action", () => {
 
     describe("Constructor", () => {
         it("should initialize with wallet provider", () => {
-            const ta = new TransferAction(wp);
+            const ta = new SwapAction(wp);
 
             expect(ta).toBeDefined();
         });
     });
-    describe("Transfer", () => {
-        let ta: TransferAction;
+    describe("Swap", () => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        let ta: SwapAction;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         let receiver: Account;
 
         beforeEach(() => {
-            ta = new TransferAction(wp);
+            ta = new SwapAction(wp);
             receiver = privateKeyToAccount(generatePrivateKey());
         });
 
-        it("throws if not enough gas", async () => {
+        it("swap throws if not enough gas/tokens", async () => {
+            const ta = new SwapAction(wp);
             await expect(
-                ta.transfer({
-                    fromChain: "iotexTestnet",
-                    toAddress: receiver.address,
-                    amount: "1",
+                ta.swap({
+                    chain: "base",
+                    fromToken: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    toToken: "0x4200000000000000000000000000000000000006",
+                    amount: "100",
+                    slippage: 0.5,
                 })
-            ).rejects.toThrow(
-                "Transfer failed: The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account."
-            );
+            ).rejects.toThrow("Execution failed");
         });
     });
 });
 
 const prepareChains = () => {
     const customChains: Record<string, Chain> = {};
-    const chainNames = ["iotexTestnet"];
+    const chainNames = ["base"];
     chainNames.forEach(
         (chain) =>
             (customChains[chain] = WalletProvider.genChainFromName(chain))

@@ -19,6 +19,5 @@ export default defineConfig({
         "@lifi/sdk",
         "events",
         "node-cache",
-        "@elizaos/core"
     ],
 });
