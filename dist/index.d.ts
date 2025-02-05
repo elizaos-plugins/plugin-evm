@@ -1,6 +1,6 @@
-import { ICacheManager, IAgentRuntime, Provider, Memory, State, Action, Plugin } from '@elizaos/core';
-import { Hash, Address, Chain, PublicClient, HttpTransport, Account, WalletClient, PrivateKeyAccount } from 'viem';
-import { Token } from '@lifi/types';
+import { ICacheManager, IAgentRuntime, Provider, Memory, State, HandlerCallback, Action, Plugin } from '@elizaos/core';
+import { Hash, Address, Log, Chain, PublicClient, HttpTransport, Account, WalletClient, PrivateKeyAccount, TestClient } from 'viem';
+import { Token, Route } from '@lifi/types';
 import * as viemChains from 'viem/chains';
 
 declare const _SupportedChainList: Array<keyof typeof viemChains>;
@@ -12,6 +12,7 @@ interface Transaction {
     value: bigint;
     data?: `0x${string}`;
     chainId?: number;
+    logs?: Log[];
 }
 interface TokenWithBalance {
     token: Token;
@@ -56,6 +57,21 @@ interface SwapParams {
     amount: string;
     slippage?: number;
 }
+interface BebopRoute {
+    data: string;
+    approvalTarget: Address;
+    sellAmount: string;
+    from: Address;
+    to: Address;
+    value: string;
+    gas: string;
+    gasPrice: string;
+}
+interface SwapQuote {
+    aggregator: "lifi" | "bebop";
+    minOutputAmount: string;
+    swapData: Route | BebopRoute;
+}
 interface BridgeParams {
     fromChain: SupportedChain;
     toChain: SupportedChain;
@@ -94,6 +110,7 @@ interface EvmPluginConfig {
         zksync?: string;
         canto?: string;
         alienx?: string;
+        gravity?: string;
     };
     secrets?: {
         EVM_PRIVATE_KEY: string;
@@ -134,6 +151,36 @@ interface ProviderError extends Error {
     code?: number;
     data?: unknown;
 }
+declare enum VoteType {
+    AGAINST = 0,
+    FOR = 1,
+    ABSTAIN = 2
+}
+interface Proposal {
+    targets: Address[];
+    values: bigint[];
+    calldatas: `0x${string}`[];
+    description: string;
+}
+interface VoteParams {
+    chain: SupportedChain;
+    governor: Address;
+    proposalId: string;
+    support: VoteType;
+}
+interface QueueProposalParams extends Proposal {
+    chain: SupportedChain;
+    governor: Address;
+}
+interface ExecuteProposalParams extends Proposal {
+    chain: SupportedChain;
+    governor: Address;
+    proposalId: string;
+}
+interface ProposeProposalParams extends Proposal {
+    chain: SupportedChain;
+    governor: Address;
+}
 
 declare class WalletProvider {
     private cacheManager;
@@ -148,6 +195,7 @@ declare class WalletProvider {
     getCurrentChain(): Chain;
     getPublicClient(chainName: SupportedChain): PublicClient<HttpTransport, Chain, Account | undefined>;
     getWalletClient(chainName: SupportedChain): WalletClient;
+    getTestClient(): TestClient;
     getChainConfigs(chainName: SupportedChain): Chain;
     getWalletBalance(): Promise<string | null>;
     getWalletBalanceForChain(chainName: SupportedChain): Promise<string | null>;
@@ -166,7 +214,7 @@ declare class WalletProvider {
 declare const initWalletProvider: (runtime: IAgentRuntime) => Promise<WalletProvider>;
 declare const evmWalletProvider: Provider;
 
-declare const bridgeTemplate = "Given the recent messages and wallet information below:\n\n{{recentMessages}}\n\n{{walletInfo}}\n\nExtract the following information about the requested token bridge:\n- Token symbol or address to bridge\n- Source chain\n- Destination chain\n- Amount to bridge: Must be a string representing the amount in ether (only number without coin symbol, e.g., \"0.1\")\n- Destination address (if specified)\n\nRespond with a JSON markdown block containing only the extracted values:\n\n```json\n{\n    \"token\": string | null,\n    \"fromChain\": \"ethereum\" | \"abstract\" | \"base\" | \"sepolia\" | \"bsc\" | \"arbitrum\" | \"avalanche\" | \"polygon\" | \"optimism\" | \"cronos\" | \"gnosis\" | \"fantom\" | \"fraxtal\" | \"klaytn\" | \"celo\" | \"moonbeam\" | \"aurora\" | \"harmonyOne\" | \"moonriver\" | \"arbitrumNova\" | \"mantle\" | \"linea\" | \"scroll\" | \"filecoin\" | \"taiko\" | \"zksync\" | \"canto\" | \"alienx\" | null,\n    \"toChain\": \"ethereum\" | \"abstract\" | \"base\" | \"sepolia\" | \"bsc\" | \"arbitrum\" | \"avalanche\" | \"polygon\" | \"optimism\" | \"cronos\" | \"gnosis\" | \"fantom\" | \"fraxtal\" | \"klaytn\" | \"celo\" | \"moonbeam\" | \"aurora\" | \"harmonyOne\" | \"moonriver\" | \"arbitrumNova\" | \"mantle\" | \"linea\" | \"scroll\" | \"filecoin\" | \"taiko\" | \"zksync\" | \"canto\" | \"alienx\" | null,\n    \"amount\": string | null,\n    \"toAddress\": string | null\n}\n```\n";
+declare const bridgeTemplate = "Given the recent messages and wallet information below:\n\n{{recentMessages}}\n\n{{walletInfo}}\n\nExtract the following information about the requested token bridge:\n- Token symbol or address to bridge\n- Source chain\n- Destination chain\n- Amount to bridge: Must be a string representing the amount in ether (only number without coin symbol, e.g., \"0.1\")\n- Destination address (if specified)\n\nRespond with a JSON markdown block containing only the extracted values:\n\n```json\n{\n    \"token\": string | null,\n    \"fromChain\": \"ethereum\" | \"abstract\" | \"base\" | \"sepolia\" | \"bsc\" | \"arbitrum\" | \"avalanche\" | \"polygon\" | \"optimism\" | \"cronos\" | \"gnosis\" | \"fantom\" | \"fraxtal\" | \"klaytn\" | \"celo\" | \"moonbeam\" | \"aurora\" | \"harmonyOne\" | \"moonriver\" | \"arbitrumNova\" | \"mantle\" | \"linea\" | \"scroll\" | \"filecoin\" | \"taiko\" | \"zksync\" | \"canto\" | \"alienx\" | \"gravity\" | null,\n    \"toChain\": \"ethereum\" | \"abstract\" | \"base\" | \"sepolia\" | \"bsc\" | \"arbitrum\" | \"avalanche\" | \"polygon\" | \"optimism\" | \"cronos\" | \"gnosis\" | \"fantom\" | \"fraxtal\" | \"klaytn\" | \"celo\" | \"moonbeam\" | \"aurora\" | \"harmonyOne\" | \"moonriver\" | \"arbitrumNova\" | \"mantle\" | \"linea\" | \"scroll\" | \"filecoin\" | \"taiko\" | \"zksync\" | \"canto\" | \"alienx\" | \"gravity\" |  null,\n    \"amount\": string | null,\n    \"toAddress\": string | null\n}\n```\n";
 declare const swapTemplate = "Given the recent messages and wallet information below:\n\n{{recentMessages}}\n\n{{walletInfo}}\n\nExtract the following information about the requested token swap:\n- Input token symbol or address (the token being sold)\n- Output token symbol or address (the token being bought)\n- Amount to swap: Must be a string representing the amount in ether (only number without coin symbol, e.g., \"0.1\")\n- Chain to execute on\n\nRespond with a JSON markdown block containing only the extracted values. Use null for any values that cannot be determined:\n\n```json\n{\n    \"inputToken\": string | null,\n    \"outputToken\": string | null,\n    \"amount\": string | null,\n    \"chain\": \"ethereum\" | \"abstract\" | \"base\" | \"sepolia\" | \"bsc\" | \"arbitrum\" | \"avalanche\" | \"polygon\" | \"optimism\" | \"cronos\" | \"gnosis\" | \"fantom\" | \"klaytn\" | \"celo\" | \"moonbeam\" | \"aurora\" | \"harmonyOne\" | \"moonriver\" | \"arbitrumNova\" | \"mantle\" | \"linea\" | \"scroll\" | \"filecoin\" | \"taiko\" | \"zksync\" | \"canto\" | \"alienx\" | null,\n    \"slippage\": number | null\n}\n```\n";
 
 declare class BridgeAction {
@@ -178,7 +226,7 @@ declare class BridgeAction {
 declare const bridgeAction: {
     name: string;
     description: string;
-    handler: (runtime: IAgentRuntime, _message: Memory, state: State, _options: any, callback?: any) => Promise<boolean>;
+    handler: (runtime: IAgentRuntime, _message: Memory, state: State, _options: Record<string, unknown>, callback?: HandlerCallback) => Promise<boolean>;
     template: string;
     validate: (runtime: IAgentRuntime) => Promise<boolean>;
     examples: {
@@ -193,9 +241,15 @@ declare const bridgeAction: {
 
 declare class SwapAction {
     private walletProvider;
-    private config;
+    private lifiConfig;
+    private bebopChainsMap;
     constructor(walletProvider: WalletProvider);
     swap(params: SwapParams): Promise<Transaction>;
+    private getSortedQuotes;
+    private getLifiQuote;
+    private getBebopQuote;
+    private executeLifiQuote;
+    private executeBebopQuote;
 }
 declare const swapAction: {
     name: string;
@@ -222,4 +276,4 @@ declare const transferAction: Action;
 
 declare const evmPlugin: Plugin;
 
-export { BridgeAction, type BridgeParams, type ChainConfig, type ChainMetadata, type EvmPluginConfig, type LiFiRoute, type LiFiStatus, type ProviderError, type SupportedChain, SwapAction, type SwapParams, type TokenData, type TokenListResponse, type TokenPriceResponse, type TokenWithBalance, type Transaction, TransferAction, type TransferParams, type WalletBalance, WalletProvider, bridgeAction, bridgeTemplate, evmPlugin as default, evmPlugin, evmWalletProvider, initWalletProvider, swapAction, swapTemplate, transferAction };
+export { type BebopRoute, BridgeAction, type BridgeParams, type ChainConfig, type ChainMetadata, type EvmPluginConfig, type ExecuteProposalParams, type LiFiRoute, type LiFiStatus, type Proposal, type ProposeProposalParams, type ProviderError, type QueueProposalParams, type SupportedChain, SwapAction, type SwapParams, type SwapQuote, type TokenData, type TokenListResponse, type TokenPriceResponse, type TokenWithBalance, type Transaction, TransferAction, type TransferParams, type VoteParams, VoteType, type WalletBalance, WalletProvider, bridgeAction, bridgeTemplate, evmPlugin as default, evmPlugin, evmWalletProvider, initWalletProvider, swapAction, swapTemplate, transferAction };

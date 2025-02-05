@@ -13,17 +13,21 @@ import {
 // src/providers/wallet.ts
 import {
   createPublicClient,
+  createTestClient,
   createWalletClient,
   formatUnits,
-  http
+  http,
+  publicActions,
+  walletActions
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   elizaLogger
 } from "@elizaos/core";
 import * as viemChains from "viem/chains";
+import { DeriveKeyProvider, TEEMode } from "@elizaos/plugin-tee";
 import NodeCache from "node-cache";
-import * as path from "path";
+import * as path from "node:path";
 var WalletProvider = class _WalletProvider {
   constructor(accountOrPrivateKey, cacheManager, chains) {
     this.cacheManager = cacheManager;
@@ -63,6 +67,13 @@ var WalletProvider = class _WalletProvider {
     });
     return walletClient;
   }
+  getTestClient() {
+    return createTestClient({
+      chain: viemChains.hardhat,
+      mode: "hardhat",
+      transport: http()
+    }).extend(publicActions).extend(walletActions);
+  }
   getChainConfigs(chainName) {
     const chain = viemChains[chainName];
     if (!chain?.id) {
@@ -71,11 +82,11 @@ var WalletProvider = class _WalletProvider {
     return chain;
   }
   async getWalletBalance() {
-    const cacheKey = "walletBalance_" + this.currentChain;
+    const cacheKey = `walletBalance_${this.currentChain}`;
     const cachedData = await this.getCachedData(cacheKey);
     if (cachedData) {
       elizaLogger.log(
-        "Returning cached wallet balance for chain: " + this.currentChain
+        `Returning cached wallet balance for chain: ${this.currentChain}`
       );
       return cachedData;
     }
@@ -159,9 +170,9 @@ var WalletProvider = class _WalletProvider {
     if (!chains) {
       return;
     }
-    Object.keys(chains).forEach((chain) => {
+    for (const chain of Object.keys(chains)) {
       this.chains[chain] = chains[chain];
-    });
+    }
   };
   setCurrentChain = (chain) => {
     this.currentChain = chain;
@@ -193,13 +204,13 @@ var WalletProvider = class _WalletProvider {
 var genChainsFromRuntime = (runtime) => {
   const chainNames = runtime.character.settings.chains?.evm || [];
   const chains = {};
-  chainNames.forEach((chainName) => {
+  for (const chainName of chainNames) {
     const rpcUrl = runtime.getSetting(
-      "ETHEREUM_PROVIDER_" + chainName.toUpperCase()
+      `ETHEREUM_PROVIDER_${chainName.toUpperCase()}`
     );
     const chain = WalletProvider.genChainFromName(chainName, rpcUrl);
     chains[chainName] = chain;
-  });
+  }
   const mainnet_rpcurl = runtime.getSetting("EVM_PROVIDER_URL");
   if (mainnet_rpcurl) {
     const chain = WalletProvider.genChainFromName(
@@ -211,14 +222,35 @@ var genChainsFromRuntime = (runtime) => {
   return chains;
 };
 var initWalletProvider = async (runtime) => {
+  const teeMode = runtime.getSetting("TEE_MODE") || TEEMode.OFF;
   const chains = genChainsFromRuntime(runtime);
-  const privateKey = runtime.getSetting(
-    "EVM_PRIVATE_KEY"
-  );
-  if (!privateKey) {
-    throw new Error("EVM_PRIVATE_KEY is missing");
+  if (teeMode !== TEEMode.OFF) {
+    const walletSecretSalt = runtime.getSetting("WALLET_SECRET_SALT");
+    if (!walletSecretSalt) {
+      throw new Error(
+        "WALLET_SECRET_SALT required when TEE_MODE is enabled"
+      );
+    }
+    const deriveKeyProvider = new DeriveKeyProvider(teeMode);
+    const deriveKeyResult = await deriveKeyProvider.deriveEcdsaKeypair(
+      walletSecretSalt,
+      "evm",
+      runtime.agentId
+    );
+    return new WalletProvider(
+      deriveKeyResult.keypair,
+      runtime.cacheManager,
+      chains
+    );
+  } else {
+    const privateKey = runtime.getSetting(
+      "EVM_PRIVATE_KEY"
+    );
+    if (!privateKey) {
+      throw new Error("EVM_PRIVATE_KEY is missing");
+    }
+    return new WalletProvider(privateKey, runtime.cacheManager, chains);
   }
-  return new WalletProvider(privateKey, runtime.cacheManager, chains);
 };
 var evmWalletProvider = {
   async get(runtime, _message, state) {
@@ -315,8 +347,8 @@ Respond with a JSON markdown block containing only the extracted values:
 \`\`\`json
 {
     "token": string | null,
-    "fromChain": "ethereum" | "abstract" | "base" | "sepolia" | "bsc" | "arbitrum" | "avalanche" | "polygon" | "optimism" | "cronos" | "gnosis" | "fantom" | "fraxtal" | "klaytn" | "celo" | "moonbeam" | "aurora" | "harmonyOne" | "moonriver" | "arbitrumNova" | "mantle" | "linea" | "scroll" | "filecoin" | "taiko" | "zksync" | "canto" | "alienx" | null,
-    "toChain": "ethereum" | "abstract" | "base" | "sepolia" | "bsc" | "arbitrum" | "avalanche" | "polygon" | "optimism" | "cronos" | "gnosis" | "fantom" | "fraxtal" | "klaytn" | "celo" | "moonbeam" | "aurora" | "harmonyOne" | "moonriver" | "arbitrumNova" | "mantle" | "linea" | "scroll" | "filecoin" | "taiko" | "zksync" | "canto" | "alienx" | null,
+    "fromChain": "ethereum" | "abstract" | "base" | "sepolia" | "bsc" | "arbitrum" | "avalanche" | "polygon" | "optimism" | "cronos" | "gnosis" | "fantom" | "fraxtal" | "klaytn" | "celo" | "moonbeam" | "aurora" | "harmonyOne" | "moonriver" | "arbitrumNova" | "mantle" | "linea" | "scroll" | "filecoin" | "taiko" | "zksync" | "canto" | "alienx" | "gravity" | null,
+    "toChain": "ethereum" | "abstract" | "base" | "sepolia" | "bsc" | "arbitrum" | "avalanche" | "polygon" | "optimism" | "cronos" | "gnosis" | "fantom" | "fraxtal" | "klaytn" | "celo" | "moonbeam" | "aurora" | "harmonyOne" | "moonriver" | "arbitrumNova" | "mantle" | "linea" | "scroll" | "filecoin" | "taiko" | "zksync" | "canto" | "alienx" | "gravity" |  null,
     "amount": string | null,
     "toAddress": string | null
 }
@@ -478,89 +510,286 @@ Transaction Hash: ${bridgeResp.hash}`,
 import {
   composeContext as composeContext2,
   generateObjectDeprecated as generateObjectDeprecated2,
-  ModelClass as ModelClass2
+  ModelClass as ModelClass2,
+  elizaLogger as elizaLogger2
 } from "@elizaos/core";
 import {
   createConfig as createConfig2,
   executeRoute as executeRoute2,
   getRoutes as getRoutes2
 } from "@lifi/sdk";
-import { parseEther as parseEther2 } from "viem";
+import {
+  encodeFunctionData,
+  parseAbi,
+  parseUnits
+} from "viem";
 var SwapAction = class {
   constructor(walletProvider) {
     this.walletProvider = walletProvider;
-    this.config = createConfig2({
+    this.walletProvider = walletProvider;
+    const lifiChains = [];
+    for (const config of Object.values(this.walletProvider.chains)) {
+      try {
+        lifiChains.push({
+          id: config.id,
+          name: config.name,
+          key: config.name.toLowerCase(),
+          chainType: "EVM",
+          nativeToken: {
+            ...config.nativeCurrency,
+            chainId: config.id,
+            address: "0x0000000000000000000000000000000000000000",
+            coinKey: config.nativeCurrency.symbol,
+            priceUSD: "0",
+            logoURI: "",
+            symbol: config.nativeCurrency.symbol,
+            decimals: config.nativeCurrency.decimals,
+            name: config.nativeCurrency.name
+          },
+          rpcUrls: {
+            public: { http: [config.rpcUrls.default.http[0]] }
+          },
+          blockExplorerUrls: [config.blockExplorers.default.url],
+          metamask: {
+            chainId: `0x${config.id.toString(16)}`,
+            chainName: config.name,
+            nativeCurrency: config.nativeCurrency,
+            rpcUrls: [config.rpcUrls.default.http[0]],
+            blockExplorerUrls: [config.blockExplorers.default.url]
+          },
+          coin: config.nativeCurrency.symbol,
+          mainnet: true,
+          diamondAddress: "0x0000000000000000000000000000000000000000"
+        });
+      } catch {
+      }
+    }
+    this.lifiConfig = createConfig2({
       integrator: "eliza",
-      chains: Object.values(this.walletProvider.chains).map((config) => ({
-        id: config.id,
-        name: config.name,
-        key: config.name.toLowerCase(),
-        chainType: "EVM",
-        nativeToken: {
-          ...config.nativeCurrency,
-          chainId: config.id,
-          address: "0x0000000000000000000000000000000000000000",
-          coinKey: config.nativeCurrency.symbol,
-          priceUSD: "0",
-          logoURI: "",
-          symbol: config.nativeCurrency.symbol,
-          decimals: config.nativeCurrency.decimals,
-          name: config.nativeCurrency.name
-        },
-        rpcUrls: {
-          public: { http: [config.rpcUrls.default.http[0]] }
-        },
-        blockExplorerUrls: [config.blockExplorers.default.url],
-        metamask: {
-          chainId: `0x${config.id.toString(16)}`,
-          chainName: config.name,
-          nativeCurrency: config.nativeCurrency,
-          rpcUrls: [config.rpcUrls.default.http[0]],
-          blockExplorerUrls: [config.blockExplorers.default.url]
-        },
-        coin: config.nativeCurrency.symbol,
-        mainnet: true,
-        diamondAddress: "0x0000000000000000000000000000000000000000"
-      }))
+      chains: lifiChains
     });
+    this.bebopChainsMap = {
+      mainnet: "ethereum"
+    };
   }
-  config;
+  lifiConfig;
+  bebopChainsMap;
   async swap(params) {
     const walletClient = this.walletProvider.getWalletClient(params.chain);
     const [fromAddress] = await walletClient.getAddresses();
-    const routes = await getRoutes2({
-      fromChainId: this.walletProvider.getChainConfigs(params.chain).id,
-      toChainId: this.walletProvider.getChainConfigs(params.chain).id,
-      fromTokenAddress: params.fromToken,
-      toTokenAddress: params.toToken,
-      fromAmount: parseEther2(params.amount).toString(),
+    const sortedQuotes = await this.getSortedQuotes(
       fromAddress,
-      options: {
-        slippage: params.slippage || 0.5,
-        order: "RECOMMENDED"
+      params
+    );
+    for (const quote of sortedQuotes) {
+      let res;
+      switch (quote.aggregator) {
+        case "lifi":
+          res = await this.executeLifiQuote(quote);
+          break;
+        case "bebop":
+          res = await this.executeBebopQuote(quote, params);
+          break;
+        default:
+          throw new Error("No aggregator found");
       }
-    });
-    if (!routes.routes.length) throw new Error("No routes found");
-    const execution = await executeRoute2(routes.routes[0], this.config);
-    const process = execution.steps[0]?.execution?.process[0];
-    if (!process?.status || process.status === "FAILED") {
-      throw new Error("Transaction failed");
+      if (res !== void 0) return res;
     }
-    return {
-      hash: process.txHash,
-      from: fromAddress,
-      to: routes.routes[0].steps[0].estimate.approvalAddress,
-      value: 0n,
-      data: process.data,
-      chainId: this.walletProvider.getChainConfigs(params.chain).id
-    };
+    throw new Error("Execution failed");
+  }
+  async getSortedQuotes(fromAddress, params) {
+    const decimalsAbi = parseAbi([
+      "function decimals() view returns (uint8)"
+    ]);
+    const decimals = await this.walletProvider.getPublicClient(params.chain).readContract({
+      address: params.fromToken,
+      abi: decimalsAbi,
+      functionName: "decimals"
+    });
+    const quotes = await Promise.all([
+      this.getLifiQuote(fromAddress, params, decimals),
+      this.getBebopQuote(fromAddress, params, decimals)
+    ]);
+    const sortedQuotes = quotes.filter(
+      (quote) => quote !== void 0
+    );
+    sortedQuotes.sort(
+      (a, b) => BigInt(a.minOutputAmount) > BigInt(b.minOutputAmount) ? -1 : 1
+    );
+    if (sortedQuotes.length === 0) throw new Error("No routes found");
+    return sortedQuotes;
+  }
+  async getLifiQuote(fromAddress, params, fromTokenDecimals) {
+    try {
+      const routes = await getRoutes2({
+        fromChainId: this.walletProvider.getChainConfigs(params.chain).id,
+        toChainId: this.walletProvider.getChainConfigs(params.chain).id,
+        fromTokenAddress: params.fromToken,
+        toTokenAddress: params.toToken,
+        fromAmount: parseUnits(
+          params.amount,
+          fromTokenDecimals
+        ).toString(),
+        fromAddress,
+        options: {
+          slippage: params.slippage / 100 || 5e-3,
+          order: "RECOMMENDED"
+        }
+      });
+      if (!routes.routes.length) throw new Error("No routes found");
+      return {
+        aggregator: "lifi",
+        minOutputAmount: routes.routes[0].steps[0].estimate.toAmountMin,
+        swapData: routes.routes[0]
+      };
+    } catch (error) {
+      elizaLogger2.error("Error in getLifiQuote:", error.message);
+      return void 0;
+    }
+  }
+  async getBebopQuote(fromAddress, params, fromTokenDecimals) {
+    try {
+      const url = `https://api.bebop.xyz/router/${this.bebopChainsMap[params.chain] ?? params.chain}/v1/quote`;
+      const reqParams = new URLSearchParams({
+        sell_tokens: params.fromToken,
+        buy_tokens: params.toToken,
+        sell_amounts: parseUnits(
+          params.amount,
+          fromTokenDecimals
+        ).toString(),
+        taker_address: fromAddress,
+        approval_type: "Standard",
+        skip_validation: "true",
+        gasless: "false",
+        source: "eliza"
+      });
+      const response = await fetch(`${url}?${reqParams.toString()}`, {
+        method: "GET",
+        headers: { accept: "application/json" }
+      });
+      if (!response.ok) {
+        throw Error(response.statusText);
+      }
+      const data = await response.json();
+      const route = {
+        data: data.routes[0].quote.tx.data,
+        sellAmount: parseUnits(
+          params.amount,
+          fromTokenDecimals
+        ).toString(),
+        approvalTarget: data.routes[0].quote.approvalTarget,
+        from: data.routes[0].quote.tx.from,
+        value: data.routes[0].quote.tx.value.toString(),
+        to: data.routes[0].quote.tx.to,
+        gas: data.routes[0].quote.tx.gas.toString(),
+        gasPrice: data.routes[0].quote.tx.gasPrice.toString()
+      };
+      return {
+        aggregator: "bebop",
+        minOutputAmount: data.routes[0].quote.buyTokens[params.toToken].minimumAmount.toString(),
+        swapData: route
+      };
+    } catch (error) {
+      elizaLogger2.error("Error in getBebopQuote:", error.message);
+      return void 0;
+    }
+  }
+  async executeLifiQuote(quote) {
+    try {
+      const route = quote.swapData;
+      const execution = await executeRoute2(
+        quote.swapData,
+        this.lifiConfig
+      );
+      const process = execution.steps[0]?.execution?.process[0];
+      if (!process?.status || process.status === "FAILED") {
+        throw new Error("Transaction failed");
+      }
+      return {
+        hash: process.txHash,
+        from: route.fromAddress,
+        to: route.steps[0].estimate.approvalAddress,
+        value: 0n,
+        data: process.data,
+        chainId: route.fromChainId
+      };
+    } catch (error) {
+      elizaLogger2.error(`Failed to execute lifi quote: ${error}`);
+      return void 0;
+    }
+  }
+  async executeBebopQuote(quote, params) {
+    try {
+      const bebopRoute = quote.swapData;
+      const allowanceAbi = parseAbi([
+        "function allowance(address,address) view returns (uint256)"
+      ]);
+      const allowance = await this.walletProvider.getPublicClient(params.chain).readContract({
+        address: params.fromToken,
+        abi: allowanceAbi,
+        functionName: "allowance",
+        args: [bebopRoute.from, bebopRoute.approvalTarget]
+      });
+      if (allowance < BigInt(bebopRoute.sellAmount)) {
+        const approvalData = encodeFunctionData({
+          abi: parseAbi(["function approve(address,uint256)"]),
+          functionName: "approve",
+          args: [
+            bebopRoute.approvalTarget,
+            BigInt(bebopRoute.sellAmount)
+          ]
+        });
+        await this.walletProvider.getWalletClient(params.chain).sendTransaction({
+          account: this.walletProvider.getWalletClient(
+            params.chain
+          ).account,
+          to: params.fromToken,
+          value: 0n,
+          data: approvalData,
+          kzg: {
+            blobToKzgCommitment: (_) => {
+              throw new Error("Function not implemented.");
+            },
+            computeBlobKzgProof: (_blob, _commitment) => {
+              throw new Error("Function not implemented.");
+            }
+          },
+          chain: void 0
+        });
+      }
+      const hash = await this.walletProvider.getWalletClient(params.chain).sendTransaction({
+        account: this.walletProvider.getWalletClient(params.chain).account,
+        to: bebopRoute.to,
+        value: BigInt(bebopRoute.value),
+        data: bebopRoute.data,
+        kzg: {
+          blobToKzgCommitment: (_) => {
+            throw new Error("Function not implemented.");
+          },
+          computeBlobKzgProof: (_blob, _commitment) => {
+            throw new Error("Function not implemented.");
+          }
+        },
+        chain: void 0
+      });
+      return {
+        hash,
+        from: this.walletProvider.getWalletClient(params.chain).account.address,
+        to: bebopRoute.to,
+        value: BigInt(bebopRoute.value),
+        data: bebopRoute.data
+      };
+    } catch (error) {
+      elizaLogger2.error(`Failed to execute bebop quote: ${error}`);
+      return void 0;
+    }
   }
 };
 var swapAction = {
   name: "swap",
   description: "Swap tokens on the same chain",
   handler: async (runtime, _message, state, _options, callback) => {
-    console.log("Swap action handler called");
+    elizaLogger2.log("Swap action handler called");
     const walletProvider = await initWalletProvider(runtime);
     const action = new SwapAction(walletProvider);
     const swapContext = composeContext2({
@@ -595,7 +824,7 @@ Transaction Hash: ${swapResp.hash}`,
       }
       return true;
     } catch (error) {
-      console.error("Error in swap handler:", error.message);
+      elizaLogger2.error("Error in swap handler:", error.message);
       if (callback) {
         callback({ text: `Error: ${error.message}` });
       }
@@ -622,7 +851,7 @@ Transaction Hash: ${swapResp.hash}`,
 };
 
 // src/actions/transfer.ts
-import { formatEther, parseEther as parseEther3 } from "viem";
+import { formatEther, parseEther as parseEther2 } from "viem";
 import {
   composeContext as composeContext3,
   generateObjectDeprecated as generateObjectDeprecated3,
@@ -647,13 +876,13 @@ var TransferAction = class {
       const hash = await walletClient.sendTransaction({
         account: walletClient.account,
         to: params.toAddress,
-        value: parseEther3(params.amount),
+        value: parseEther2(params.amount),
         data: params.data,
         kzg: {
-          blobToKzgCommitment: function(_) {
+          blobToKzgCommitment: (_) => {
             throw new Error("Function not implemented.");
           },
-          computeBlobKzgProof: function(_blob, _commitment) {
+          computeBlobKzgProof: (_blob, _commitment) => {
             throw new Error("Function not implemented.");
           }
         },
@@ -663,7 +892,7 @@ var TransferAction = class {
         hash,
         from: walletClient.account.address,
         to: params.toAddress,
-        value: parseEther3(params.amount),
+        value: parseEther2(params.amount),
         data: params.data
       };
     } catch (error) {
@@ -763,6 +992,12 @@ Transaction Hash: ${transferResp.hash}`,
 // src/types/index.ts
 import * as viemChains2 from "viem/chains";
 var _SupportedChainList = Object.keys(viemChains2);
+var VoteType = /* @__PURE__ */ ((VoteType2) => {
+  VoteType2[VoteType2["AGAINST"] = 0] = "AGAINST";
+  VoteType2[VoteType2["FOR"] = 1] = "FOR";
+  VoteType2[VoteType2["ABSTAIN"] = 2] = "ABSTAIN";
+  return VoteType2;
+})(VoteType || {});
 
 // src/index.ts
 var evmPlugin = {
@@ -778,6 +1013,7 @@ export {
   BridgeAction,
   SwapAction,
   TransferAction,
+  VoteType,
   WalletProvider,
   bridgeAction,
   bridgeTemplate,
